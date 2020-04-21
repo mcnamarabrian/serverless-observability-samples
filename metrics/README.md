@@ -1,4 +1,4 @@
-# logging
+# metrics
 
 You can use [Amazon CloudWatch Logs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html) to monitor, store, and access your log files from Amazon Elastic Compute Cloud (Amazon EC2) instances, AWS CloudTrail, Route 53, and other sources. [AWS Lambda](https://aws.amazon.com/lambda/) and [Amazon API Gateway](https://aws.amazon.com/api-gateway/) have very tight integration with Amazon CloudWatch Logs.
 
@@ -54,7 +54,7 @@ filter @type = "REPORT" | parse @message /Init Duration: (?<init>\S+)/ | stats c
 
 # Deploying sample application
 
-A sample serverless application has been defined in (template.yml)[./template.yml].  This application is a Python function that returns a random integer between 1 and 100.  The random number is included in the structured log output.
+A sample serverless application has been defined in (template.yml)[./template.yml].  This application is a Python function that returns a JSON payload of a lottery winner and the amount won.
 
 The first step is to *build* the application including any dependencies.
 
@@ -62,8 +62,87 @@ The first step is to *build* the application including any dependencies.
 sam build --use-container
 ```
 
-Once the application has been built, it can be deployed by using the following command:
+Once the application has been bundled, it can be deployed by using the following command:
 
 ```bash
 sam deploy --guided
+```
+
+# Examining custom metrics
+
+Once the application has been deployed, it can be tested with an empty payload.  
+
+```bash
+export STACK_NAME=whatever_you_specified_during_guided_deploy
+export FUNCTION=$(aws cloudformation describe-stack-resource --stack-name ${STACK_NAME} --logical-resource-id RandomWinnerFunction --query "StackResourceDetail.PhysicalResourceId" --output text)
+aws lambda invoke \
+    --function-name ${FUNCTION} \
+    --payload '{ }' \
+    response.json
+```
+
+The return value is stored in the file `response.json`.  This can be repeated any number of times to generate a function invocation.
+
+The log group can be identified by running the following command.  Once identified, you can view the Log Streams in the AWS Console.  The Log Streams will contain the data emitted from the function handler `handler` in the file `index.py`.
+
+```bash
+aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/${STACK_NAME}" --query "logGroups[*].logGroupName" --output text
+```
+
+Sample data:
+
+```bash
+{
+    "LogGroup": "random-winner-RandomWinnerFunction-UME6DVT4CLAW",
+    "ServiceName": "random-winner-RandomWinnerFunction-UME6DVT4CLAW",
+    "ServiceType": "AWS::Lambda::Function",
+    "service": "payout_service",
+    "Player": "Adam",
+    "RequestId": "80308025-291a-437a-92d7-c073d132dac3",
+    "executionEnvironment": "AWS_Lambda_python3.6",
+    "memorySize": "128",
+    "functionVersion": "$LATEST",
+    "logStreamId": "2020/04/21/[$LATEST]2054349ab30a4bb6b196d94f8c74c82c",
+    "_aws": {
+        "Timestamp": 1587458198751,
+        "CloudWatchMetrics": [
+            {
+                "Dimensions": [
+                    [
+                        "LogGroup",
+                        "ServiceName",
+                        "ServiceType",
+                        "service"
+                    ]
+                ],
+                "Metrics": [
+                    {
+                        "Name": "PayoutAmount",
+                        "Unit": "Sum"
+                    }
+                ],
+                "Namespace": "Lottery"
+            }
+        ]
+    },
+    "PayoutAmount": 97
+}
+```
+
+You can view the custom data in the CloudWatch Metrics panel under the namespace **Lottery**.
+
+![CloudWatch Metrics Custom Namespace](images/metrics-namespaces.png)
+
+This is made possible through the use of EMF in `index.py`.  The metric and property values are emitted in the log and ingested as metrics.
+
+```bash
+...
+...
+    metrics.set_namespace('Lottery')
+    metrics.put_dimensions({'service':'payout_service'})
+    metrics.put_metric('PayoutAmount', random_number, 'Sum')
+    metrics.set_property('Player', random_winner)
+    metrics.set_property('RequestId', context.aws_request_id)
+...
+...
 ```

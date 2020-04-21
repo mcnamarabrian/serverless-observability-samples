@@ -1,0 +1,12 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: SAM template to show how embedded metrics formats can be used.
+
+Resources:
+  RandomWinnerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Random lottery winner 
+      Handler: index.handler
+      Runtime: python3.6
+      CodeUri: ./src/random_winner/
