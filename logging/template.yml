@@ -1,0 +1,12 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: SAM template to show how structured logging can be used.
+
+Resources:
+  RandomNumberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Random number generator 
+      Handler: index.handler
+      Runtime: python3.6
+      CodeUri: ./src/random_number_generator/
