@@ -1,0 +1,25 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: SAM template to show how embedded metrics formats and tracing can be used.
+
+Resources:
+  RandomBigWinnerTracedFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Random lottery winner with X-Ray
+      Handler: index.handler
+      Runtime: python3.6
+      Timeout: 10
+      Tracing: Active
+      CodeUri: ./src/random_big_winner/
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+                - xray:GetSamplingStatisticSummaries
+              Resource: '*'
